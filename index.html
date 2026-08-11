@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f1e5" />
+    <meta
+      name="description"
+      content="얼굴 부위의 움직임을 배우고 열 가지 감정 표정을 카메라로 탐색하는 감정 다이어리 웹 게임"
+    />
+    <title>마음 얼굴 연구소</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='20' fill='%23f17c67'/%3E%3Ccircle cx='32' cy='31' r='20' fill='%23f8d79c' stroke='%234d4037' stroke-width='3'/%3E%3Ccircle cx='25' cy='28' r='2.5' fill='%234d4037'/%3E%3Ccircle cx='39' cy='28' r='2.5' fill='%234d4037'/%3E%3Cpath d='M23 38c5 5 13 5 18 0' fill='none' stroke='%234d4037' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <div class="texture" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="마음 얼굴 연구소 처음으로">
+        <span class="brand-symbol" aria-hidden="true">
+          <span></span><span></span><i></i>
+        </span>
+        <span class="brand-copy">
+          <strong>마음 얼굴 연구소</strong>
+          <small>EMOTION DIARY</small>
+        </span>
+      </a>
+
+      <div class="session-progress hidden" id="sessionProgress" aria-label="전체 게임 진행 상황">
+        <span id="sessionProgressText">01 / 10</span>
+        <div class="session-progress__line" aria-hidden="true"><span id="sessionProgressBar"></span></div>
+      </div>
+
+      <button class="sound-toggle" id="soundButton" type="button" aria-pressed="true" aria-label="소리 켜짐">
+        <span aria-hidden="true">♪</span>
+        <span class="sound-label">소리 켬</span>
+      </button>
+    </header>
+
+    <main>
+      <section class="screen welcome-screen" id="welcomeScreen" aria-labelledby="welcomeTitle">
+        <div class="welcome-copy">
+          <p class="section-kicker">표정을 관찰하는 새로운 방법</p>
+          <h1 id="welcomeTitle">
+            얼굴을 움직이면<br />
+            <span>마음의 모양</span>이 보여요
+          </h1>
+          <p class="welcome-lead">
+            눈썹, 눈, 코, 입을 하나씩 살펴보고<br />열 가지 감정을 내 얼굴로 표현해 보세요.
+          </p>
+
+          <div class="welcome-actions">
+            <button class="primary-action" id="cameraStartButton" type="button">
+              <span>카메라로 시작</span><span aria-hidden="true">↗</span>
+            </button>
+            <button class="mode-action" id="detectStartButton" type="button">
+              <span><small>NEW · 5초 측정</small><strong>지금 표정 읽기</strong></span>
+              <span aria-hidden="true">◎</span>
+            </button>
+            <button class="text-action" id="practiceStartButton" type="button">카메라 없이 둘러보기</button>
+          </div>
+
+          <p class="privacy-line">
+            <span aria-hidden="true"></span>
+            영상은 기기 안에서만 분석되며 저장되지 않아요.
+          </p>
+        </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hero-index">10<br /><small>FACES · LIVE ANALYSIS</small></div>
+          <div class="hero-scanner">
+            <span class="scanner-corner scanner-corner--tl"></span>
+            <span class="scanner-corner scanner-corner--tr"></span>
+            <span class="scanner-corner scanner-corner--bl"></span>
+            <span class="scanner-corner scanner-corner--br"></span>
+            <span class="scanner-axis scanner-axis--horizontal"></span>
+            <span class="scanner-axis scanner-axis--vertical"></span>
+            <div class="scanner-rings"><span></span><span></span><span></span></div>
+            <div class="scanner-core"></div>
+            <span class="scanner-sweep"></span>
+          </div>
+          <div class="scanner-label scanner-label--brow"><span>01</span>눈썹</div>
+          <div class="scanner-label scanner-label--eyes"><span>02</span>눈</div>
+          <div class="scanner-label scanner-label--nose"><span>03</span>코</div>
+          <div class="scanner-label scanner-label--mouth"><span>04</span>입</div>
+        </div>
+      </section>
+
+      <section class="screen setup-screen hidden" id="setupScreen" aria-labelledby="setupTitle">
+        <div class="setup-copy">
+          <p class="section-kicker" id="setupEyebrow">카메라 준비</p>
+          <h2 id="setupTitle">내 표정의<br />기준을 맞춰요</h2>
+          <p id="setupDescription">정면을 바라보고 편안한 얼굴과 활짝 웃는 얼굴을 차례로 보여 주세요.</p>
+
+          <div class="setup-steps" aria-label="카메라 준비 단계">
+            <div><span>01</span><p><strong>얼굴 맞추기</strong>화면 가운데를 바라봐요.</p></div>
+            <div><span>02</span><p><strong>표정 기준 잡기</strong>편안한 얼굴과 미소를 읽어요.</p></div>
+            <div><span>03</span><p><strong>게임 시작</strong>내 표정 크기에 맞춰 분석해요.</p></div>
+          </div>
+
+          <div class="model-status" id="modelStatus" role="status" aria-live="polite">
+            <span class="model-status__dot"></span>
+            <span>카메라 사용을 기다리고 있어요.</span>
+          </div>
+
+          <div class="setup-actions">
+            <button class="primary-action" id="calibrateButton" type="button" disabled>표정 기준 맞추기</button>
+            <button class="text-action" id="setupPracticeButton" type="button">연습 모드로 계속</button>
+          </div>
+        </div>
+
+        <div class="setup-camera">
+          <div class="camera-stage camera-stage--setup">
+            <video id="setupVideo" autoplay muted playsinline></video>
+            <div class="camera-placeholder" id="setupCameraPlaceholder">
+              <span class="placeholder-eye" aria-hidden="true"></span>
+              <strong>카메라를 준비하고 있어요</strong>
+            </div>
+            <div class="face-frame" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+            <div class="calibration-layer hidden" id="calibrationWash">
+              <span class="calibration-step" id="calibrationStep">편안한 얼굴</span>
+              <strong id="calibrationCount">3</strong>
+              <p id="calibrationMessage">힘을 빼고 정면을 바라봐요.</p>
+            </div>
+          </div>
+          <p class="camera-caption"><span>LIVE</span> 얼굴 영상은 이 화면을 벗어나지 않아요.</p>
+        </div>
+      </section>
+
+      <section class="screen game-screen hidden" id="gameScreen" aria-labelledby="emotionName">
+        <div class="round-heading">
+          <div>
+            <p class="section-kicker" id="missionEyebrow">첫 번째 마음</p>
+            <h2 id="emotionName">기쁨</h2>
+            <p id="emotionPrompt">좋아하는 사람을 만난 것처럼 환하게 웃어 보세요.</p>
+          </div>
+
+          <div class="round-clock" id="roundClock" aria-live="polite">
+            <div class="round-clock__dial" aria-hidden="true">
+              <svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="34"></circle><circle id="clockProgress" cx="40" cy="40" r="34"></circle></svg>
+              <strong id="clockSeconds">3</strong>
+            </div>
+            <div>
+              <span id="clockPhase">준비</span>
+              <small id="clockHelp">얼굴이 확인되면 시작해요</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="game-workspace">
+          <section class="guide-pane" aria-labelledby="guideTitle">
+            <div class="pane-heading">
+              <span>GUIDE</span>
+              <h3 id="guideTitle">표정 만드는 법</h3>
+            </div>
+
+            <div class="guide-portrait" id="guideIllustration" aria-label="기쁨 표정 예시"></div>
+
+            <div class="face-guides" id="faceGuides">
+              <div class="face-guide-item" data-part="eyebrows"><span class="guide-part"><i aria-hidden="true"></i>눈썹</span><p id="guideEyebrows">자연스럽게 두어요.</p></div>
+              <div class="face-guide-item" data-part="eyes"><span class="guide-part"><i aria-hidden="true"></i>눈</span><p id="guideEyes">웃을 때 살짝 접혀요.</p></div>
+              <div class="face-guide-item" data-part="nose"><span class="guide-part"><i aria-hidden="true"></i>코</span><p id="guideNose">편안하게 두어요.</p></div>
+              <div class="face-guide-item" data-part="mouth"><span class="guide-part"><i aria-hidden="true"></i>입</span><p id="guideMouth">양쪽 입꼬리를 올려요.</p></div>
+            </div>
+
+            <p class="guide-reminder">이 모습만 정답은 아니에요. 내 방식대로 표현해도 좋아요.</p>
+          </section>
+
+          <section class="camera-pane" aria-label="카메라 표정 연습 화면">
+            <div class="camera-stage camera-stage--game" id="gameCameraStage">
+              <video id="gameVideo" autoplay muted playsinline></video>
+              <canvas id="faceCanvas" aria-hidden="true"></canvas>
+              <div class="camera-placeholder camera-placeholder--practice hidden" id="practicePlaceholder">
+                <span class="practice-symbol" id="practiceFace">☺</span>
+                <strong>거울을 보듯 표정을 지어 보세요</strong>
+                <small>준비되면 아래 버튼으로 다음 표정으로 이동해요.</small>
+              </div>
+              <div class="camera-state" id="cameraBadge"><span></span>얼굴 찾는 중</div>
+              <div class="phase-banner" id="phaseBanner">
+                <span id="phaseBannerLabel">준비</span>
+                <strong id="phaseBannerText">얼굴을 화면 가운데에 맞춰요</strong>
+              </div>
+            </div>
+
+            <div class="camera-feedback">
+              <p id="matchMessage" aria-live="polite">얼굴이 확인되면 준비 시간이 시작돼요.</p>
+              <div class="camera-actions">
+                <button class="soft-action hidden" id="manualSuccessButton" type="button">이 표정을 지었어요</button>
+                <button class="text-action" id="skipButton" type="button">이번 표정 건너뛰기</button>
+              </div>
+            </div>
+          </section>
+
+          <aside class="analysis-pane" aria-labelledby="analysisTitle">
+            <div class="pane-heading">
+              <span>LIVE ANALYSIS</span>
+              <h3 id="analysisTitle">카메라가 읽은 표정</h3>
+            </div>
+            <p class="analysis-intro">실제 감정을 판단하지 않으며, 얼굴 움직임과 닮은 정도예요.</p>
+
+            <div class="analysis-list" id="analysisList"></div>
+
+            <button class="analysis-toggle" id="analysisToggle" type="button" aria-expanded="false">
+              <span>전체 10개 보기</span><i aria-hidden="true"></i>
+            </button>
+
+            <div class="analysis-leader" id="analysisLeader">
+              <span>가장 가깝게 읽힌 표정</span>
+              <strong id="leadingEmotion">분석 준비 중</strong>
+              <small id="leadingNote">표정을 지으면 결과가 나타나요.</small>
+            </div>
+          </aside>
+        </div>
+
+        <div class="journey-controls" aria-label="게임 조작">
+          <button class="utility-action" id="pauseButton" type="button" aria-pressed="false">일시정지</button>
+          <button class="utility-action" id="gameHomeButton" type="button">처음으로</button>
+        </div>
+      </section>
+
+      <section class="screen detect-screen hidden" id="detectScreen" aria-labelledby="detectTitle">
+        <div class="detect-heading">
+          <div>
+            <p class="section-kicker">5초 표정 읽기</p>
+            <h2 id="detectTitle">지금 얼굴에서<br /><span>가까운 표정</span>을 읽어요</h2>
+            <p>5초 동안 얼굴 움직임을 살펴보고 열 가지 표정 중 가까운 모습을 알려 드려요.</p>
+          </div>
+
+          <div class="round-clock detect-clock" id="detectClock" role="timer" aria-label="표정 읽기 남은 시간">
+            <div class="round-clock__dial" aria-hidden="true">
+              <svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="34"></circle><circle id="detectClockProgress" cx="40" cy="40" r="34"></circle></svg>
+              <strong id="detectClockSeconds">5</strong>
+            </div>
+            <div>
+              <span id="detectClockPhase">얼굴 확인</span>
+              <small id="detectClockHelp">얼굴이 보이면 시작해요</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="detect-workspace">
+          <section class="detect-camera-pane" aria-label="5초 표정 판독 카메라">
+            <div class="camera-stage camera-stage--detect" id="detectCameraStage">
+              <video id="detectVideo" autoplay muted playsinline></video>
+              <canvas id="detectCanvas" aria-hidden="true"></canvas>
+              <div class="face-frame" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+              <div class="camera-state" id="detectCameraBadge"><span></span>얼굴 찾는 중</div>
+              <div class="detect-sweep" aria-hidden="true"></div>
+              <div class="phase-banner" id="detectPhaseBanner">
+                <span id="detectPhaseLabel">대기</span>
+                <strong id="detectPhaseText">얼굴을 화면 가운데에 맞춰요</strong>
+              </div>
+            </div>
+
+            <div class="detect-status" id="detectStatus" role="status" aria-live="polite">
+              얼굴이 안정적으로 보이면 5초 판독이 자동으로 시작돼요.
+            </div>
+
+            <div class="detect-result-card hidden" id="detectResult" role="status" aria-live="assertive">
+              <span id="detectResultEyebrow">가장 가깝게 읽힌 표정</span>
+              <strong id="detectResultName">기쁨</strong>
+              <p id="detectResultDescription">얼굴 움직임이 기쁨 표정과 가장 가까웠어요.</p>
+              <div class="detect-result-top" id="detectResultTop"></div>
+            </div>
+          </section>
+
+          <aside class="analysis-pane detect-analysis" aria-labelledby="detectAnalysisTitle">
+            <div class="pane-heading">
+              <span>5 SEC · LIVE ANALYSIS</span>
+              <h3 id="detectAnalysisTitle">읽고 있는 표정</h3>
+            </div>
+            <p class="analysis-intro">실제 감정을 판단하지 않으며, 얼굴 움직임과 닮은 정도예요.</p>
+            <div class="analysis-list is-expanded" id="detectAnalysisList"></div>
+            <div class="analysis-leader">
+              <span>현재 가장 가까운 표정</span>
+              <strong id="detectLeadingEmotion">분석 준비 중</strong>
+              <small id="detectLeadingNote">표정을 지으면 수치가 나타나요.</small>
+            </div>
+          </aside>
+        </div>
+
+        <div class="journey-controls journey-controls--detect" aria-label="표정 읽기 조작">
+          <button class="utility-action" id="detectPauseButton" type="button" aria-pressed="false">일시정지</button>
+          <button class="soft-action hidden" id="detectRetryButton" type="button">5초 다시 읽기</button>
+          <button class="utility-action" id="detectHomeButton" type="button">처음으로</button>
+        </div>
+
+        <p class="detect-disclaimer">이 결과는 실제 마음이나 성격을 판단하는 검사가 아니에요. 카메라에 보인 얼굴 움직임과 표정 예시의 닮은 정도만 보여 줍니다.</p>
+      </section>
+
+      <section class="screen result-screen hidden" id="resultScreen" aria-labelledby="resultTitle">
+        <div class="result-visual" aria-hidden="true">
+          <div class="result-number">10</div>
+          <div class="result-face"><span></span><span></span><i></i></div>
+          <p>모든 얼굴은<br />저마다 다르게 말해요.</p>
+        </div>
+
+        <div class="result-content">
+          <p class="section-kicker">열 가지 마음 탐색 완료</p>
+          <h2 id="resultTitle">오늘 만난<br /><span>마음의 얼굴</span></h2>
+          <p class="result-lead">목표와 다르게 읽힌 표정도 틀린 것이 아니에요. 실제 마음을 판단하는 검사가 아니며, 얼굴에는 여러 감정의 움직임이 함께 나타날 수 있어요.</p>
+
+          <dl class="result-stats">
+            <div><dt>표현한 얼굴</dt><dd id="completedCount">10</dd></div>
+            <div><dt>목표와 만난 표정</dt><dd id="matchedCount">0</dd></div>
+            <div><dt>가장 자주 읽힌 표정</dt><dd id="bestEmotion">기쁨</dd></div>
+          </dl>
+
+          <div class="round-recap-wrap">
+            <div class="recap-heading"><span>라운드 기록</span><small>목표 → 카메라가 읽은 표정</small></div>
+            <ol class="round-recap" id="roundRecap"></ol>
+          </div>
+
+          <div class="result-actions">
+            <button class="primary-action" id="replayButton" type="button">한 번 더 탐색하기</button>
+            <button class="text-action" id="homeButton" type="button">처음 화면으로</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="round-result hidden" id="roundResult" role="status" aria-live="assertive">
+      <div class="round-result__content">
+        <span id="roundResultEyebrow">표정을 찾았어요</span>
+        <strong id="roundResultTitle">기쁨</strong>
+        <p id="roundResultDescription">목표 표정과 닮았어요.</p>
+        <div class="round-result__top" id="roundResultTop"></div>
+      </div>
+    </div>
+
+    <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
