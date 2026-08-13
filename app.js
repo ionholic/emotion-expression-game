@@ -219,6 +219,7 @@ const state = {
   animationFrameId: 0,
   successLocked: false,
   userPaused: false,
+  autoPaused: false,
   detectPhase: "idle",
   detectElapsed: 0,
   detectLastAt: 0,
@@ -266,6 +267,8 @@ const ui = {
   guideNose: document.getElementById("guideNose"),
   guideMouth: document.getElementById("guideMouth"),
   faceGuideItems: [...document.querySelectorAll(".face-guide-item")],
+  guideContent: document.getElementById("guideContent"),
+  guideToggle: document.getElementById("guideToggle"),
   roundClock: document.getElementById("roundClock"),
   clockProgress: document.getElementById("clockProgress"),
   clockSeconds: document.getElementById("clockSeconds"),
@@ -304,6 +307,7 @@ const ui = {
   detectClockHelp: document.getElementById("detectClockHelp"),
   detectStatus: document.getElementById("detectStatus"),
   detectAnalysisList: document.getElementById("detectAnalysisList"),
+  detectAnalysisToggle: document.getElementById("detectAnalysisToggle"),
   detectLeadingEmotion: document.getElementById("detectLeadingEmotion"),
   detectLeadingNote: document.getElementById("detectLeadingNote"),
   detectResult: document.getElementById("detectResult"),
@@ -345,11 +349,15 @@ function bindEvents() {
   ui.homeButton.addEventListener("click", returnHome);
   ui.soundButton.addEventListener("click", toggleSound);
   ui.analysisToggle.addEventListener("click", toggleAnalysisList);
+  ui.detectAnalysisToggle.addEventListener("click", toggleDetectAnalysisList);
+  ui.guideToggle.addEventListener("click", toggleGuide);
   document.querySelector(".brand").addEventListener("click", (event) => {
     event.preventDefault();
     returnHome();
   });
   window.addEventListener("resize", () => resizeCanvas());
+  window.addEventListener("orientationchange", handleViewportInterruption);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
   window.addEventListener("beforeunload", stopCamera);
 }
 
@@ -371,14 +379,7 @@ async function startCameraJourney(journey = "game") {
   }
 
   try {
-    state.stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "user",
-        width: { ideal: 960 },
-        height: { ideal: 720 }
-      },
-      audio: false
-    });
+    state.stream = await requestCameraStream();
 
     ui.setupVideo.srcObject = state.stream;
     ui.gameVideo.srcObject = state.stream;
@@ -389,6 +390,24 @@ async function startCameraJourney(journey = "game") {
     startDetectionLoop();
   } catch (error) {
     handleCameraError(error);
+  }
+}
+
+async function requestCameraStream() {
+  const preferred = {
+    video: {
+      facingMode: "user",
+      width: { ideal: isMobileViewport() ? 640 : 960 },
+      height: { ideal: isMobileViewport() ? 480 : 720 },
+      frameRate: isMobileViewport() ? { ideal: 12, max: 15 } : { ideal: 24, max: 30 }
+    },
+    audio: false
+  };
+  try {
+    return await navigator.mediaDevices.getUserMedia(preferred);
+  } catch (error) {
+    if (error?.name !== "OverconstrainedError") throw error;
+    return navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
   }
 }
 
@@ -689,11 +708,15 @@ function startExpressionDetection() {
   state.detectResult = null;
   state.faceStableSince = 0;
   state.userPaused = false;
+  state.autoPaused = false;
   setScreen("detect");
   renderScoreList(ui.detectAnalysisList);
   updateDetectAnalysisUI();
   updateDetectionClockUI("waiting", 0);
   ui.detectResult.classList.add("hidden");
+  ui.detectAnalysisList.classList.remove("is-expanded");
+  ui.detectAnalysisToggle.setAttribute("aria-expanded", "false");
+  ui.detectAnalysisToggle.querySelector("span").textContent = "전체 10개 보기";
   ui.detectRetryButton.classList.add("hidden");
   ui.detectPauseButton.classList.remove("hidden");
   ui.detectCameraStage.classList.remove("is-reading", "is-paused");
@@ -855,6 +878,7 @@ function loadEmotion(index) {
   ui.analysisList.classList.remove("is-expanded");
   ui.analysisToggle.setAttribute("aria-expanded", "false");
   ui.analysisToggle.querySelector("span").textContent = "전체 10개 보기";
+  collapseGuideOnMobile();
   ui.gameCameraStage.classList.remove("is-final", "is-paused");
   ui.phaseBanner.classList.remove("is-final");
   ui.roundClock.classList.remove("is-final", "is-paused");
@@ -1130,11 +1154,44 @@ function toggleAnalysisList() {
   ui.analysisList.classList.toggle("is-expanded", expanded);
   ui.analysisToggle.setAttribute("aria-expanded", String(expanded));
   ui.analysisToggle.querySelector("span").textContent = expanded ? "상위 3개만 보기" : "전체 10개 보기";
+  if (expanded && isMobileViewport()) setGuideExpanded(false);
+}
+
+function toggleDetectAnalysisList() {
+  const expanded = !ui.detectAnalysisList.classList.contains("is-expanded");
+  ui.detectAnalysisList.classList.toggle("is-expanded", expanded);
+  ui.detectAnalysisToggle.setAttribute("aria-expanded", String(expanded));
+  ui.detectAnalysisToggle.querySelector("span").textContent = expanded ? "상위 3개만 보기" : "전체 10개 보기";
+}
+
+function toggleGuide() {
+  const expanded = !ui.guideContent.classList.contains("is-expanded");
+  setGuideExpanded(expanded);
+  if (expanded && isMobileViewport()) {
+    ui.analysisList.classList.remove("is-expanded");
+    ui.analysisToggle.setAttribute("aria-expanded", "false");
+    ui.analysisToggle.querySelector("span").textContent = "전체 10개 보기";
+  }
+}
+
+function collapseGuideOnMobile() {
+  setGuideExpanded(!isMobileViewport());
+}
+
+function setGuideExpanded(expanded) {
+  ui.guideContent.classList.toggle("is-expanded", expanded);
+  ui.guideToggle.setAttribute("aria-expanded", String(expanded));
+  ui.guideToggle.querySelector("span").textContent = expanded ? "가이드 접기" : "가이드 보기";
+}
+
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 720px)").matches;
 }
 
 function togglePause() {
   if (state.mode !== "camera") return;
   state.userPaused = !state.userPaused;
+  state.autoPaused = false;
   const now = performance.now();
   state.lastClockAt = now;
   state.detectLastAt = now;
@@ -1160,6 +1217,58 @@ function togglePause() {
     ui.detectPhaseLabel.textContent = state.userPaused ? "일시정지" : state.detectPhase === "reading" ? "판독 중" : "대기";
     ui.detectPhaseText.textContent = state.userPaused ? "준비되면 다시 시작해요" : state.detectPhase === "reading" ? "지금 표정을 5초 동안 보여 주세요" : "얼굴을 화면 가운데에 맞춰요";
     ui.detectStatus.textContent = state.userPaused ? "5초 판독을 잠시 멈췄어요." : "멈춘 곳부터 표정 판독을 이어갈게요.";
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    pauseForDeviceInterruption("다른 화면으로 이동해 자동으로 멈췄어요.");
+    setCameraTracksEnabled(false);
+    return;
+  }
+  setCameraTracksEnabled(true);
+  state.faceStableSince = 0;
+  if (state.screen === "setup" && state.mode === "camera") {
+    setModelStatus("카메라를 다시 확인하고 있어요. 화면 가운데를 바라봐 주세요.", "loading");
+  }
+}
+
+function setCameraTracksEnabled(enabled) {
+  if (!state.stream) return;
+  for (const track of state.stream.getVideoTracks()) track.enabled = enabled;
+}
+
+function handleViewportInterruption() {
+  pauseForDeviceInterruption("화면 방향이 바뀌어 자동으로 멈췄어요.");
+  window.setTimeout(() => resizeCanvas(), 180);
+}
+
+function pauseForDeviceInterruption(message) {
+  if (state.mode !== "camera" || !["setup", "game", "detect"].includes(state.screen)) return;
+  if (state.screen === "setup") {
+    state.faceStableSince = 0;
+    setModelStatus(message + " 화면을 다시 확인해 주세요.", "loading");
+    return;
+  }
+  if (state.userPaused) return;
+  state.userPaused = true;
+  state.autoPaused = true;
+  state.lastClockAt = performance.now();
+  state.detectLastAt = performance.now();
+  updatePauseButtons();
+  if (state.screen === "game") {
+    ui.roundClock.classList.add("is-paused");
+    ui.gameCameraStage.classList.add("is-paused");
+    ui.phaseBannerLabel.textContent = "자동 멈춤";
+    ui.phaseBannerText.textContent = "계속하기를 누르면 이어져요";
+    ui.matchMessage.textContent = message;
+  }
+  if (state.screen === "detect") {
+    ui.detectClock.classList.add("is-paused");
+    ui.detectCameraStage.classList.add("is-paused");
+    ui.detectPhaseLabel.textContent = "자동 멈춤";
+    ui.detectPhaseText.textContent = "계속하기를 누르면 이어져요";
+    ui.detectStatus.textContent = message;
   }
 }
 
@@ -1358,6 +1467,7 @@ function resetSession() {
   state.targetHoldStarted = 0;
   state.successLocked = false;
   state.userPaused = false;
+  state.autoPaused = false;
   state.detectPhase = "idle";
   state.detectElapsed = 0;
   state.detectLastAt = 0;
@@ -1373,7 +1483,7 @@ function setScreen(name) {
   ui.detectScreen.classList.toggle("hidden", name !== "detect");
   ui.resultScreen.classList.toggle("hidden", name !== "result");
   ui.sessionProgress.classList.toggle("hidden", name !== "game");
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: isMobileViewport() ? "auto" : "smooth" });
   if (name === "game") resizeCanvas(ui.gameVideo, ui.faceCanvas);
   if (name === "detect") resizeCanvas(ui.detectVideo, ui.detectCanvas);
 }
@@ -1427,6 +1537,8 @@ function handleCameraError(error) {
   let placeholder = "카메라를 열지 못했어요";
   if (error?.name === "NotAllowedError") message = "카메라 권한이 꺼져 있어요. 브라우저 설정에서 허용하거나 연습 모드를 이용해 주세요.";
   if (error?.name === "NotFoundError") message = "연결된 카메라를 찾지 못했어요. 연습 모드로 계속할 수 있어요.";
+  if (error?.name === "NotReadableError") message = "다른 앱에서 카메라를 사용하고 있어요. 다른 앱을 닫은 뒤 다시 시도해 주세요.";
+  if (error?.name === "OverconstrainedError") message = "이 기기의 카메라 설정을 맞추지 못했어요. 브라우저를 새로 고친 뒤 다시 시도해 주세요.";
   if (/fetch|dynamically imported module|network/i.test(error?.message || "")) {
     message = "얼굴 분석기를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.";
     placeholder = "얼굴 분석기를 불러오지 못했어요";
@@ -1638,6 +1750,7 @@ window.render_game_to_text = () => JSON.stringify({
   mode: state.mode,
   journey: state.journey,
   paused: state.userPaused,
+  autoPaused: state.autoPaused,
   game: state.screen === "game" ? {
     emotion: EMOTIONS[state.currentEmotionIndex]?.name || null,
     round: state.currentEmotionIndex + 1,

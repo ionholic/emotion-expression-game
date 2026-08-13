@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f1e5" />
     <meta
       name="description"
@@ -153,21 +153,25 @@
 
         <div class="game-workspace">
           <section class="guide-pane" aria-labelledby="guideTitle">
-            <div class="pane-heading">
-              <span>GUIDE</span>
-              <h3 id="guideTitle">표정 만드는 법</h3>
+            <div class="pane-heading pane-heading--collapsible">
+              <div><span>GUIDE</span><h3 id="guideTitle">표정 만드는 법</h3></div>
+              <button class="section-toggle" id="guideToggle" type="button" aria-expanded="false" aria-controls="guideContent">
+                <span>가이드 보기</span><i aria-hidden="true"></i>
+              </button>
             </div>
 
-            <div class="guide-portrait" id="guideIllustration" aria-label="기쁨 표정 예시"></div>
+            <div class="guide-content" id="guideContent">
+              <div class="guide-portrait" id="guideIllustration" aria-label="기쁨 표정 예시"></div>
 
-            <div class="face-guides" id="faceGuides">
-              <div class="face-guide-item" data-part="eyebrows"><span class="guide-part"><i aria-hidden="true"></i>눈썹</span><p id="guideEyebrows">자연스럽게 두어요.</p></div>
-              <div class="face-guide-item" data-part="eyes"><span class="guide-part"><i aria-hidden="true"></i>눈</span><p id="guideEyes">웃을 때 살짝 접혀요.</p></div>
-              <div class="face-guide-item" data-part="nose"><span class="guide-part"><i aria-hidden="true"></i>코</span><p id="guideNose">편안하게 두어요.</p></div>
-              <div class="face-guide-item" data-part="mouth"><span class="guide-part"><i aria-hidden="true"></i>입</span><p id="guideMouth">양쪽 입꼬리를 올려요.</p></div>
+              <div class="face-guides" id="faceGuides">
+                <div class="face-guide-item" data-part="eyebrows"><span class="guide-part"><i aria-hidden="true"></i>눈썹</span><p id="guideEyebrows">자연스럽게 두어요.</p></div>
+                <div class="face-guide-item" data-part="eyes"><span class="guide-part"><i aria-hidden="true"></i>눈</span><p id="guideEyes">웃을 때 살짝 접혀요.</p></div>
+                <div class="face-guide-item" data-part="nose"><span class="guide-part"><i aria-hidden="true"></i>코</span><p id="guideNose">편안하게 두어요.</p></div>
+                <div class="face-guide-item" data-part="mouth"><span class="guide-part"><i aria-hidden="true"></i>입</span><p id="guideMouth">양쪽 입꼬리를 올려요.</p></div>
+              </div>
+
+              <p class="guide-reminder">이 모습만 정답은 아니에요. 내 방식대로 표현해도 좋아요.</p>
             </div>
-
-            <p class="guide-reminder">이 모습만 정답은 아니에요. 내 방식대로 표현해도 좋아요.</p>
           </section>
 
           <section class="camera-pane" aria-label="카메라 표정 연습 화면">
@@ -274,7 +278,10 @@
               <h3 id="detectAnalysisTitle">읽고 있는 표정</h3>
             </div>
             <p class="analysis-intro">실제 감정을 판단하지 않으며, 얼굴 움직임과 닮은 정도예요.</p>
-            <div class="analysis-list is-expanded" id="detectAnalysisList"></div>
+            <div class="analysis-list" id="detectAnalysisList"></div>
+            <button class="analysis-toggle" id="detectAnalysisToggle" type="button" aria-expanded="false">
+              <span>전체 10개 보기</span><i aria-hidden="true"></i>
+            </button>
             <div class="analysis-leader">
               <span>현재 가장 가까운 표정</span>
               <strong id="detectLeadingEmotion">분석 준비 중</strong>
