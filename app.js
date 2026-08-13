@@ -14,6 +14,7 @@ const SUCCESS_HOLD_MS = 850;
 const FINAL_SAMPLE_FROM_MS = 3000;
 const DETECT_DURATION_MS = 5000;
 const CLOCK_CIRCUMFERENCE = 214;
+const MODEL_LOAD_TIMEOUT_MS = 30000;
 
 const EMOTIONS = [
   {
@@ -199,6 +200,7 @@ const state = {
   screen: "welcome",
   stream: null,
   faceLandmarker: null,
+  faceModelPromise: null,
   currentBlendshapes: null,
   baseline: {},
   featureScales: {},
@@ -217,6 +219,11 @@ const state = {
   detectionInterval: 82,
   lastVideoTime: -1,
   animationFrameId: 0,
+  cameraRequestId: 0,
+  cameraStarting: false,
+  sessionVersion: 0,
+  pendingRoundVersion: 0,
+  roundResultReturnFocus: null,
   successLocked: false,
   userPaused: false,
   autoPaused: false,
@@ -247,6 +254,7 @@ const ui = {
   detectStartButton: document.getElementById("detectStartButton"),
   practiceStartButton: document.getElementById("practiceStartButton"),
   setupPracticeButton: document.getElementById("setupPracticeButton"),
+  retryCameraButton: document.getElementById("retryCameraButton"),
   calibrateButton: document.getElementById("calibrateButton"),
   modelStatus: document.getElementById("modelStatus"),
   setupVideo: document.getElementById("setupVideo"),
@@ -329,6 +337,7 @@ const ui = {
   roundResultTitle: document.getElementById("roundResultTitle"),
   roundResultDescription: document.getElementById("roundResultDescription"),
   roundResultTop: document.getElementById("roundResultTop"),
+  roundResultNextButton: document.getElementById("roundResultNextButton"),
   toast: document.getElementById("toast")
 };
 
@@ -337,6 +346,7 @@ function bindEvents() {
   ui.detectStartButton.addEventListener("click", () => startCameraJourney("detect"));
   ui.practiceStartButton.addEventListener("click", startPracticeJourney);
   ui.setupPracticeButton.addEventListener("click", startPracticeJourney);
+  ui.retryCameraButton.addEventListener("click", retryCameraJourney);
   ui.calibrateButton.addEventListener("click", calibrateExpressionRange);
   ui.manualSuccessButton.addEventListener("click", completePracticeEmotion);
   ui.skipButton.addEventListener("click", skipEmotion);
@@ -351,6 +361,7 @@ function bindEvents() {
   ui.analysisToggle.addEventListener("click", toggleAnalysisList);
   ui.detectAnalysisToggle.addEventListener("click", toggleDetectAnalysisList);
   ui.guideToggle.addEventListener("click", toggleGuide);
+  ui.roundResultNextButton.addEventListener("click", continueAfterRoundResult);
   document.querySelector(".brand").addEventListener("click", (event) => {
     event.preventDefault();
     returnHome();
@@ -362,6 +373,7 @@ function bindEvents() {
 }
 
 async function startCameraJourney(journey = "game") {
+  const requestId = ++state.cameraRequestId;
   state.mode = "camera";
   state.journey = journey;
   resetSession();
@@ -371,7 +383,11 @@ async function startCameraJourney(journey = "game") {
   updateSetupCopy();
   setModelStatus("카메라 사용 권한을 확인하고 있어요.", "loading");
   ui.calibrateButton.disabled = true;
+  ui.calibrateButton.classList.remove("hidden");
+  ui.retryCameraButton.classList.add("hidden");
   ui.setupCameraPlaceholder.classList.remove("hidden");
+  ui.setupCameraPlaceholder.querySelector("strong").textContent = "카메라를 준비하고 있어요";
+  setCameraStartPending(true);
 
   if (!navigator.mediaDevices?.getUserMedia) {
     handleCameraError(new Error("이 브라우저에서는 카메라를 사용할 수 없습니다."));
@@ -379,18 +395,47 @@ async function startCameraJourney(journey = "game") {
   }
 
   try {
-    state.stream = await requestCameraStream();
+    const stream = await requestCameraStream();
+    if (!isCurrentCameraRequest(requestId)) {
+      stopMediaStream(stream);
+      return;
+    }
+    state.stream = stream;
 
     ui.setupVideo.srcObject = state.stream;
     ui.gameVideo.srcObject = state.stream;
     ui.detectVideo.srcObject = state.stream;
-    await Promise.all([safePlay(ui.setupVideo), safePlay(ui.gameVideo), safePlay(ui.detectVideo), loadFaceModel()]);
+    await Promise.all([
+      safePlay(ui.setupVideo),
+      withTimeout(loadFaceModel(), MODEL_LOAD_TIMEOUT_MS, "얼굴 분석기 연결 시간이 너무 오래 걸리고 있어요.")
+    ]);
+    if (!isCurrentCameraRequest(requestId)) return;
     ui.setupCameraPlaceholder.classList.add("hidden");
     setModelStatus("얼굴 분석기가 준비됐어요. 화면 가운데를 바라봐 주세요.", "loading");
     startDetectionLoop();
   } catch (error) {
-    handleCameraError(error);
+    if (isCurrentCameraRequest(requestId)) handleCameraError(error);
+  } finally {
+    if (requestId === state.cameraRequestId) setCameraStartPending(false);
   }
+}
+
+function retryCameraJourney() {
+  const journey = state.journey;
+  stopCamera();
+  startCameraJourney(journey);
+}
+
+function isCurrentCameraRequest(requestId) {
+  return requestId === state.cameraRequestId && state.mode === "camera" && state.screen === "setup";
+}
+
+function setCameraStartPending(pending) {
+  state.cameraStarting = pending;
+  ui.cameraStartButton.disabled = pending;
+  ui.detectStartButton.disabled = pending;
+  ui.retryCameraButton.disabled = pending;
+  ui.setupScreen.setAttribute("aria-busy", String(pending));
 }
 
 async function requestCameraStream() {
@@ -422,32 +467,40 @@ function startPracticeJourney() {
 
 async function loadFaceModel() {
   if (state.faceLandmarker) return state.faceLandmarker;
+  if (state.faceModelPromise) return state.faceModelPromise;
 
   setModelStatus("얼굴 분석기를 불러오고 있어요.", "loading");
-  const { FilesetResolver, FaceLandmarker } = await import(MEDIAPIPE_MODULE);
-  const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM);
+  state.faceModelPromise = (async () => {
+    const { FilesetResolver, FaceLandmarker } = await import(MEDIAPIPE_MODULE);
+    const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM);
 
-  const options = {
-    baseOptions: { modelAssetPath: FACE_MODEL, delegate: "GPU" },
-    runningMode: "VIDEO",
-    numFaces: 1,
-    outputFaceBlendshapes: true,
-    outputFacialTransformationMatrixes: false,
-    minFaceDetectionConfidence: 0.5,
-    minFacePresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5
-  };
+    const options = {
+      baseOptions: { modelAssetPath: FACE_MODEL, delegate: "GPU" },
+      runningMode: "VIDEO",
+      numFaces: 1,
+      outputFaceBlendshapes: true,
+      outputFacialTransformationMatrixes: false,
+      minFaceDetectionConfidence: 0.5,
+      minFacePresenceConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    };
+
+    try {
+      state.faceLandmarker = await FaceLandmarker.createFromOptions(vision, options);
+    } catch (gpuError) {
+      state.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+        ...options,
+        baseOptions: { modelAssetPath: FACE_MODEL }
+      });
+    }
+    return state.faceLandmarker;
+  })();
 
   try {
-    state.faceLandmarker = await FaceLandmarker.createFromOptions(vision, options);
-  } catch (gpuError) {
-    state.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-      ...options,
-      baseOptions: { modelAssetPath: FACE_MODEL }
-    });
+    return await state.faceModelPromise;
+  } finally {
+    state.faceModelPromise = null;
   }
-
-  return state.faceLandmarker;
 }
 
 function startDetectionLoop() {
@@ -465,8 +518,11 @@ function startDetectionLoop() {
         : ui.gameVideo;
     const ready = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0;
     const newFrame = video.currentTime !== state.lastVideoTime;
+    const analysisPaused = document.hidden || state.userPaused ||
+      (state.screen === "game" && state.successLocked) ||
+      (state.screen === "detect" && state.detectPhase === "result");
 
-    if (ready && newFrame && now - state.lastDetectionAt >= state.detectionInterval) {
+    if (!analysisPaused && ready && newFrame && now - state.lastDetectionAt >= state.detectionInterval) {
       state.lastDetectionAt = now;
       state.lastVideoTime = video.currentTime;
       const startedAt = performance.now();
@@ -694,6 +750,7 @@ function startGame() {
   state.successLocked = false;
   setScreen("game");
   loadEmotion(0);
+  if (state.mode === "camera") safePlay(ui.gameVideo);
 }
 
 function startExpressionDetection() {
@@ -1358,28 +1415,61 @@ function skipEmotion() {
   }, true);
 }
 
-async function finishRound(result, skipOverlay = false) {
+function finishRound(result, skipOverlay = false) {
   if (state.successLocked) return;
   state.successLocked = true;
   state.results.push(result);
+  const sessionVersion = state.sessionVersion;
 
   if (skipOverlay) {
     showToast(`${result.targetName} 표정은 건너뛰었어요. 다음에 다시 표현해 볼 수 있어요.`);
-    await delay(280);
-    loadEmotion(state.currentEmotionIndex + 1);
+    window.setTimeout(() => {
+      if (sessionVersion === state.sessionVersion && state.screen === "game") {
+        loadEmotion(state.currentEmotionIndex + 1);
+      }
+    }, 280);
     return;
   }
 
   const copy = createRoundResultCopy(result);
   ui.roundResultEyebrow.textContent = copy.eyebrow;
   ui.roundResultTitle.textContent = copy.title;
+  ui.roundResultTitle.classList.toggle("is-long", copy.title.length > 7);
   ui.roundResultDescription.textContent = copy.description;
   ui.roundResultTop.innerHTML = result.topScores.map((item) => `<span>${item.name} ${Math.round(item.score * 100)}%</span>`).join("");
-  ui.roundResult.classList.remove("hidden");
+  ui.roundResultNextButton.textContent = state.currentEmotionIndex === EMOTIONS.length - 1 ? "탐색 결과 보기" : "다음 표정으로";
+  state.pendingRoundVersion = sessionVersion;
+  setRoundResultOpen(true);
   playTone(result.matched ? "success" : "result");
-  await delay(1700);
-  ui.roundResult.classList.add("hidden");
+}
+
+function continueAfterRoundResult() {
+  const canContinue = state.pendingRoundVersion === state.sessionVersion && state.screen === "game";
+  state.pendingRoundVersion = 0;
+  setRoundResultOpen(false, false);
+  if (!canContinue) return;
   loadEmotion(state.currentEmotionIndex + 1);
+  window.requestAnimationFrame(() => ui.emotionName.focus({ preventScroll: true }));
+}
+
+function setRoundResultOpen(open, restoreFocus = true) {
+  const main = document.querySelector("main");
+  const topbar = document.querySelector(".topbar");
+  ui.roundResult.classList.toggle("hidden", !open);
+  main.inert = open;
+  topbar.inert = open;
+
+  if (open) {
+    hideToast();
+    state.roundResultReturnFocus = document.activeElement;
+    window.requestAnimationFrame(() => ui.roundResultNextButton.focus());
+    return;
+  }
+
+  if (restoreFocus && state.roundResultReturnFocus?.isConnected) {
+    state.roundResultReturnFocus.focus({ preventScroll: true });
+  }
+  state.roundResultReturnFocus = null;
 }
 
 function createRoundResultCopy(result) {
@@ -1455,6 +1545,9 @@ function returnHome() {
 }
 
 function resetSession() {
+  state.sessionVersion += 1;
+  state.pendingRoundVersion = 0;
+  setRoundResultOpen(false, false);
   state.currentEmotionIndex = 0;
   state.results = [];
   state.rawScores = createEmptyScores();
@@ -1473,6 +1566,7 @@ function resetSession() {
   state.detectLastAt = 0;
   state.detectSamples = [];
   state.detectResult = null;
+  ui.retryCameraButton.classList.add("hidden");
 }
 
 function setScreen(name) {
@@ -1532,7 +1626,7 @@ function createEmptyScores() {
 }
 
 function handleCameraError(error) {
-  console.error("카메라 시작 오류", error);
+  console.warn("카메라 시작 오류", error);
   let message = "카메라를 시작하지 못했어요. 연습 모드로 계속할 수 있어요.";
   let placeholder = "카메라를 열지 못했어요";
   if (error?.name === "NotAllowedError") message = "카메라 권한이 꺼져 있어요. 브라우저 설정에서 허용하거나 연습 모드를 이용해 주세요.";
@@ -1543,17 +1637,25 @@ function handleCameraError(error) {
     message = "얼굴 분석기를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.";
     placeholder = "얼굴 분석기를 불러오지 못했어요";
   }
-  if (state.stream) stopCamera();
+  if (error?.name === "TimeoutError") {
+    message = "얼굴 분석기 연결이 지연되고 있어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.";
+    placeholder = "연결 시간이 오래 걸리고 있어요";
+  }
+  stopCamera();
   setModelStatus(message, "error");
+  ui.calibrateButton.classList.add("hidden");
+  ui.setupCameraPlaceholder.classList.remove("hidden");
   ui.setupCameraPlaceholder.querySelector("strong").textContent = placeholder;
-  showToast(message);
+  ui.retryCameraButton.classList.remove("hidden");
 }
 
 function stopCamera() {
+  state.cameraRequestId += 1;
+  setCameraStartPending(false);
   cancelAnimationFrame(state.animationFrameId);
   state.animationFrameId = 0;
   if (state.stream) {
-    state.stream.getTracks().forEach((track) => track.stop());
+    stopMediaStream(state.stream);
     state.stream = null;
   }
   ui.setupVideo.srcObject = null;
@@ -1562,6 +1664,10 @@ function stopCamera() {
   state.currentBlendshapes = null;
   state.faceDetected = false;
   state.lastVideoTime = -1;
+}
+
+function stopMediaStream(stream) {
+  stream?.getTracks?.().forEach((track) => track.stop());
 }
 
 function drawLandmarks(landmarks, video, canvas) {
@@ -1631,10 +1737,16 @@ function playTone(kind) {
 }
 
 function showToast(message) {
-  clearTimeout(state.toastTimer);
+  hideToast();
   ui.toast.textContent = message;
   ui.toast.classList.remove("hidden");
   state.toastTimer = window.setTimeout(() => ui.toast.classList.add("hidden"), 4200);
+}
+
+function hideToast() {
+  window.clearTimeout(state.toastTimer);
+  state.toastTimer = 0;
+  ui.toast.classList.add("hidden");
 }
 
 function averageSamples(samples) {
@@ -1729,12 +1841,29 @@ function createEmotionIllustration(id) {
     </svg>`;
 }
 
-function safePlay(video) {
-  return video.play().catch(() => undefined);
+async function safePlay(video) {
+  try {
+    const playPromise = video.play();
+    if (playPromise) await Promise.race([playPromise, delay(2000)]);
+  } catch {
+    // 재생 준비 상태는 분석 루프에서 다시 확인한다.
+  }
 }
 
 function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function withTimeout(promise, milliseconds, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      const error = new Error(message);
+      error.name = "TimeoutError";
+      reject(error);
+    }, milliseconds);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
 function average(values) {

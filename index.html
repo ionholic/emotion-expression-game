@@ -109,6 +109,7 @@
 
           <div class="setup-actions">
             <button class="primary-action" id="calibrateButton" type="button" disabled>표정 기준 맞추기</button>
+            <button class="soft-action hidden" id="retryCameraButton" type="button">카메라 다시 연결</button>
             <button class="text-action" id="setupPracticeButton" type="button">연습 모드로 계속</button>
           </div>
         </div>
@@ -135,7 +136,7 @@
         <div class="round-heading">
           <div>
             <p class="section-kicker" id="missionEyebrow">첫 번째 마음</p>
-            <h2 id="emotionName">기쁨</h2>
+            <h2 id="emotionName" tabindex="-1">기쁨</h2>
             <p id="emotionPrompt">좋아하는 사람을 만난 것처럼 환하게 웃어 보세요.</p>
           </div>
 
@@ -330,12 +331,13 @@
       </section>
     </main>
 
-    <div class="round-result hidden" id="roundResult" role="status" aria-live="assertive">
+    <div class="round-result hidden" id="roundResult" role="dialog" aria-modal="true" aria-labelledby="roundResultTitle" aria-describedby="roundResultDescription">
       <div class="round-result__content">
         <span id="roundResultEyebrow">표정을 찾았어요</span>
         <strong id="roundResultTitle">기쁨</strong>
         <p id="roundResultDescription">목표 표정과 닮았어요.</p>
         <div class="round-result__top" id="roundResultTop"></div>
+        <button class="round-result__next" id="roundResultNextButton" type="button">다음 표정으로</button>
       </div>
     </div>
 
