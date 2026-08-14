@@ -1,12 +1,12 @@
 @font-face {
   font-family: "ONE Mobile POP";
-  src: url("./fonts/ONE-Mobile-POP.ttf") format("truetype");
+  src: url("./fonts/ONE-Mobile-POP.woff") format("woff");
   font-display: swap;
 }
 
 @font-face {
   font-family: "KCC Dodamdodam";
-  src: url("./fonts/KCCDodamdodam.ttf") format("truetype");
+  src: url("./fonts/KCCDodamdodam.woff") format("woff");
   font-display: swap;
 }
 
