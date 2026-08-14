@@ -221,6 +221,9 @@ const state = {
   animationFrameId: 0,
   cameraRequestId: 0,
   cameraStarting: false,
+  mobileSheet: "",
+  mobileSheetReturnFocus: null,
+  compactViewport: window.matchMedia("(max-width: 720px), (max-height: 560px)").matches,
   sessionVersion: 0,
   pendingRoundVersion: 0,
   roundResultReturnFocus: null,
@@ -277,6 +280,8 @@ const ui = {
   faceGuideItems: [...document.querySelectorAll(".face-guide-item")],
   guideContent: document.getElementById("guideContent"),
   guideToggle: document.getElementById("guideToggle"),
+  gameGuidePane: document.getElementById("gameGuidePane"),
+  guideSheetClose: document.getElementById("guideSheetClose"),
   roundClock: document.getElementById("roundClock"),
   clockProgress: document.getElementById("clockProgress"),
   clockSeconds: document.getElementById("clockSeconds"),
@@ -299,6 +304,11 @@ const ui = {
   gameHomeButton: document.getElementById("gameHomeButton"),
   analysisList: document.getElementById("analysisList"),
   analysisToggle: document.getElementById("analysisToggle"),
+  gameAnalysisPane: document.getElementById("gameAnalysisPane"),
+  analysisSheetClose: document.getElementById("analysisSheetClose"),
+  mobileGuideButton: document.getElementById("mobileGuideButton"),
+  mobileAnalysisButton: document.getElementById("mobileAnalysisButton"),
+  mobileAnalysisSummary: document.getElementById("mobileAnalysisSummary"),
   leadingEmotion: document.getElementById("leadingEmotion"),
   leadingNote: document.getElementById("leadingNote"),
   detectVideo: document.getElementById("detectVideo"),
@@ -316,6 +326,10 @@ const ui = {
   detectStatus: document.getElementById("detectStatus"),
   detectAnalysisList: document.getElementById("detectAnalysisList"),
   detectAnalysisToggle: document.getElementById("detectAnalysisToggle"),
+  detectAnalysisPane: document.getElementById("detectAnalysisPane"),
+  detectAnalysisSheetClose: document.getElementById("detectAnalysisSheetClose"),
+  detectMobileAnalysisButton: document.getElementById("detectMobileAnalysisButton"),
+  detectMobileAnalysisSummary: document.getElementById("detectMobileAnalysisSummary"),
   detectLeadingEmotion: document.getElementById("detectLeadingEmotion"),
   detectLeadingNote: document.getElementById("detectLeadingNote"),
   detectResult: document.getElementById("detectResult"),
@@ -338,6 +352,7 @@ const ui = {
   roundResultDescription: document.getElementById("roundResultDescription"),
   roundResultTop: document.getElementById("roundResultTop"),
   roundResultNextButton: document.getElementById("roundResultNextButton"),
+  mobileSheetBackdrop: document.getElementById("mobileSheetBackdrop"),
   toast: document.getElementById("toast")
 };
 
@@ -361,13 +376,21 @@ function bindEvents() {
   ui.analysisToggle.addEventListener("click", toggleAnalysisList);
   ui.detectAnalysisToggle.addEventListener("click", toggleDetectAnalysisList);
   ui.guideToggle.addEventListener("click", toggleGuide);
+  ui.mobileGuideButton.addEventListener("click", () => toggleMobileSheet("guide"));
+  ui.mobileAnalysisButton.addEventListener("click", () => toggleMobileSheet("analysis"));
+  ui.detectMobileAnalysisButton.addEventListener("click", () => toggleMobileSheet("detect-analysis"));
+  ui.guideSheetClose.addEventListener("click", () => closeMobileSheets());
+  ui.analysisSheetClose.addEventListener("click", () => closeMobileSheets());
+  ui.detectAnalysisSheetClose.addEventListener("click", () => closeMobileSheets());
+  ui.mobileSheetBackdrop.addEventListener("click", () => closeMobileSheets());
   ui.roundResultNextButton.addEventListener("click", continueAfterRoundResult);
   document.querySelector(".brand").addEventListener("click", (event) => {
     event.preventDefault();
     returnHome();
   });
-  window.addEventListener("resize", () => resizeCanvas());
+  window.addEventListener("resize", handleViewportResize);
   window.addEventListener("orientationchange", handleViewportInterruption);
+  window.addEventListener("keydown", handleGlobalKeydown);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   window.addEventListener("beforeunload", stopCamera);
 }
@@ -767,6 +790,7 @@ function startExpressionDetection() {
   state.userPaused = false;
   state.autoPaused = false;
   setScreen("detect");
+  ui.detectScreen.classList.remove("is-result");
   renderScoreList(ui.detectAnalysisList);
   updateDetectAnalysisUI();
   updateDetectionClockUI("waiting", 0);
@@ -851,6 +875,7 @@ function finishExpressionDetection() {
     clarity: isUnclear ? "unclear" : isMixed ? "mixed" : "clear",
     topScores: ranked.slice(0, 3)
   };
+  ui.detectScreen.classList.add("is-result");
 
   ui.detectCameraStage.classList.remove("is-reading", "is-paused");
   ui.detectPhaseBanner.classList.add("is-final");
@@ -1162,10 +1187,13 @@ function updateAnalysisUI() {
   if (!leader || leader.score < 0.04) {
     ui.leadingEmotion.textContent = state.mode === "practice" ? "연습 모드" : "분석 준비 중";
     ui.leadingNote.textContent = state.mode === "practice" ? "카메라를 켜면 실시간 분석이 나타나요." : "표정을 지으면 결과가 나타나요.";
+    ui.mobileAnalysisSummary.textContent = state.mode === "practice" ? "연습 모드" : "분석 준비";
     return;
   }
 
-  ui.leadingEmotion.textContent = `${leader.name} ${Math.round(leader.score * 100)}%`;
+  const leaderLabel = `${leader.name} ${Math.round(leader.score * 100)}%`;
+  ui.leadingEmotion.textContent = leaderLabel;
+  ui.mobileAnalysisSummary.textContent = leaderLabel;
   if (second && leader.score - second.score < 0.08) {
     ui.leadingNote.textContent = `${second.name} 표정도 함께 나타나고 있어요.`;
   } else {
@@ -1180,9 +1208,12 @@ function updateDetectAnalysisUI() {
   if (!leader || leader.score < 0.04) {
     ui.detectLeadingEmotion.textContent = "분석 준비 중";
     ui.detectLeadingNote.textContent = "표정을 지으면 수치가 나타나요.";
+    ui.detectMobileAnalysisSummary.textContent = "분석 준비";
     return;
   }
-  ui.detectLeadingEmotion.textContent = `${leader.name} ${Math.round(leader.score * 100)}%`;
+  const leaderLabel = `${leader.name} ${Math.round(leader.score * 100)}%`;
+  ui.detectLeadingEmotion.textContent = leaderLabel;
+  ui.detectMobileAnalysisSummary.textContent = leaderLabel;
   ui.detectLeadingNote.textContent = second && leader.score - second.score < 0.08
     ? `${second.name} 표정도 함께 나타나고 있어요.`
     : "현재 얼굴 움직임과 가장 가까운 표정이에요.";
@@ -1242,7 +1273,76 @@ function setGuideExpanded(expanded) {
 }
 
 function isMobileViewport() {
-  return window.matchMedia("(max-width: 720px)").matches;
+  return window.matchMedia("(max-width: 720px), (max-height: 560px)").matches;
+}
+
+function toggleMobileSheet(type) {
+  if (!isMobileViewport()) return;
+  if (state.mobileSheet === type) {
+    closeMobileSheets();
+    return;
+  }
+  openMobileSheet(type);
+}
+
+function openMobileSheet(type) {
+  const configs = {
+    guide: { panel: ui.gameGuidePane, button: ui.mobileGuideButton, close: ui.guideSheetClose },
+    analysis: { panel: ui.gameAnalysisPane, button: ui.mobileAnalysisButton, close: ui.analysisSheetClose },
+    "detect-analysis": { panel: ui.detectAnalysisPane, button: ui.detectMobileAnalysisButton, close: ui.detectAnalysisSheetClose }
+  };
+  const config = configs[type];
+  if (!config) return;
+
+  closeMobileSheets(false);
+  state.mobileSheet = type;
+  state.mobileSheetReturnFocus = config.button;
+  config.panel.inert = false;
+  config.panel.classList.add("is-mobile-sheet-open");
+  config.panel.setAttribute("role", "dialog");
+  config.panel.setAttribute("aria-modal", "true");
+  config.button.setAttribute("aria-expanded", "true");
+  ui.mobileSheetBackdrop.classList.add("is-open");
+  document.body.classList.add("has-mobile-sheet");
+  if (type === "guide") setGuideExpanded(true);
+  window.requestAnimationFrame(() => config.close.focus());
+}
+
+function closeMobileSheets(restoreFocus = true) {
+  const panels = [ui.gameGuidePane, ui.gameAnalysisPane, ui.detectAnalysisPane];
+  const buttons = [ui.mobileGuideButton, ui.mobileAnalysisButton, ui.detectMobileAnalysisButton];
+  for (const panel of panels) {
+    panel.classList.remove("is-mobile-sheet-open");
+    panel.removeAttribute("role");
+    panel.removeAttribute("aria-modal");
+    panel.inert = isMobileViewport();
+  }
+  for (const button of buttons) button.setAttribute("aria-expanded", "false");
+  ui.mobileSheetBackdrop.classList.remove("is-open");
+  document.body.classList.remove("has-mobile-sheet");
+  if (isMobileViewport()) setGuideExpanded(false);
+
+  const returnFocus = state.mobileSheetReturnFocus;
+  state.mobileSheet = "";
+  state.mobileSheetReturnFocus = null;
+  if (restoreFocus && returnFocus?.isConnected && !returnFocus.closest(".hidden")) {
+    returnFocus.focus({ preventScroll: true });
+  }
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key === "Escape" && state.mobileSheet) {
+    event.preventDefault();
+    closeMobileSheets();
+  }
+}
+
+function handleViewportResize() {
+  resizeCanvas();
+  const compact = isMobileViewport();
+  if (compact === state.compactViewport) return;
+  state.compactViewport = compact;
+  closeMobileSheets(false);
 }
 
 function togglePause() {
@@ -1296,6 +1396,7 @@ function setCameraTracksEnabled(enabled) {
 }
 
 function handleViewportInterruption() {
+  closeMobileSheets(false);
   pauseForDeviceInterruption("화면 방향이 바뀌어 자동으로 멈췄어요.");
   window.setTimeout(() => resizeCanvas(), 180);
 }
@@ -1566,10 +1667,12 @@ function resetSession() {
   state.detectLastAt = 0;
   state.detectSamples = [];
   state.detectResult = null;
+  ui.detectScreen.classList.remove("is-result");
   ui.retryCameraButton.classList.add("hidden");
 }
 
 function setScreen(name) {
+  closeMobileSheets(false);
   state.screen = name;
   ui.welcomeScreen.classList.toggle("hidden", name !== "welcome");
   ui.setupScreen.classList.toggle("hidden", name !== "setup");
@@ -1577,6 +1680,7 @@ function setScreen(name) {
   ui.detectScreen.classList.toggle("hidden", name !== "detect");
   ui.resultScreen.classList.toggle("hidden", name !== "result");
   ui.sessionProgress.classList.toggle("hidden", name !== "game");
+  document.body.classList.toggle("is-journey-active", name === "game" || name === "detect");
   window.scrollTo({ top: 0, behavior: isMobileViewport() ? "auto" : "smooth" });
   if (name === "game") resizeCanvas(ui.gameVideo, ui.faceCanvas);
   if (name === "detect") resizeCanvas(ui.detectVideo, ui.detectCanvas);

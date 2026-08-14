@@ -44,14 +44,21 @@
     <main>
       <section class="screen welcome-screen" id="welcomeScreen" aria-labelledby="welcomeTitle">
         <div class="welcome-copy">
-          <p class="section-kicker">표정을 관찰하는 새로운 방법</p>
+          <p class="section-kicker"><span>감정 다이어리 연장 활동</span> · 표정으로 마음 만나기</p>
           <h1 id="welcomeTitle">
-            얼굴을 움직이면<br />
-            <span>마음의 모양</span>이 보여요
+            표정을 살펴보면<br />
+            <span>마음의 모양</span>이 <br class="mobile-title-break" />보여요
           </h1>
           <p class="welcome-lead">
-            눈썹, 눈, 코, 입을 하나씩 살펴보고<br />열 가지 감정을 내 얼굴로 표현해 보세요.
+            눈썹, 눈, 코, 입의 움직임을 차근차근 살펴보고<br />열 가지 감정을 나만의 표정으로 표현해 보세요.
           </p>
+
+          <ol class="activity-path" aria-label="표정 게임 활동 순서">
+            <li><span>01</span><strong>관찰</strong><small>표정 만나기</small></li>
+            <li><span>02</span><strong>가이드</strong><small>얼굴 부위 보기</small></li>
+            <li><span>03</span><strong>표현</strong><small>직접 지어 보기</small></li>
+            <li><span>04</span><strong>돌아보기</strong><small>닮은 표정 읽기</small></li>
+          </ol>
 
           <div class="welcome-actions">
             <button class="primary-action" id="cameraStartButton" type="button">
@@ -70,24 +77,13 @@
           </p>
         </div>
 
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hero-index">10<br /><small>FACES · LIVE ANALYSIS</small></div>
-          <div class="hero-scanner">
-            <span class="scanner-corner scanner-corner--tl"></span>
-            <span class="scanner-corner scanner-corner--tr"></span>
-            <span class="scanner-corner scanner-corner--bl"></span>
-            <span class="scanner-corner scanner-corner--br"></span>
-            <span class="scanner-axis scanner-axis--horizontal"></span>
-            <span class="scanner-axis scanner-axis--vertical"></span>
-            <div class="scanner-rings"><span></span><span></span><span></span></div>
-            <div class="scanner-core"></div>
-            <span class="scanner-sweep"></span>
-          </div>
-          <div class="scanner-label scanner-label--brow"><span>01</span>눈썹</div>
-          <div class="scanner-label scanner-label--eyes"><span>02</span>눈</div>
-          <div class="scanner-label scanner-label--nose"><span>03</span>코</div>
-          <div class="scanner-label scanner-label--mouth"><span>04</span>입</div>
-        </div>
+        <figure class="hero-visual hero-visual--illustrated">
+          <img src="./assets/expression-practice-children.png" alt="놀란 표정과 기쁜 표정을 얼굴과 손짓으로 표현하는 두 어린이" />
+          <span class="hero-lesson-mark">표정 활동</span>
+          <span class="hero-expression-tag hero-expression-tag--surprise">눈이 동그래지고<br />입이 작게 열렸어요</span>
+          <span class="hero-expression-tag hero-expression-tag--joy">눈이 접히고<br />입꼬리가 올라갔어요</span>
+          <figcaption><strong>표정은 사람마다 달라요.</strong> 정답 하나를 찾기보다 내 얼굴의 움직임을 발견해요.</figcaption>
+        </figure>
       </section>
 
       <section class="screen setup-screen hidden" id="setupScreen" aria-labelledby="setupTitle">
@@ -153,12 +149,13 @@
         </div>
 
         <div class="game-workspace">
-          <section class="guide-pane" aria-labelledby="guideTitle">
+          <section class="guide-pane" id="gameGuidePane" aria-labelledby="guideTitle">
             <div class="pane-heading pane-heading--collapsible">
-              <div><span>GUIDE</span><h3 id="guideTitle">표정 만드는 법</h3></div>
+              <div><span>01 · 02 관찰하고 살펴보기</span><h3 id="guideTitle">표정 만드는 법</h3></div>
               <button class="section-toggle" id="guideToggle" type="button" aria-expanded="false" aria-controls="guideContent">
                 <span>가이드 보기</span><i aria-hidden="true"></i>
               </button>
+              <button class="mobile-sheet-close" id="guideSheetClose" type="button" aria-label="표정 가이드 닫기">닫기</button>
             </div>
 
             <div class="guide-content" id="guideContent">
@@ -200,10 +197,10 @@
             </div>
           </section>
 
-          <aside class="analysis-pane" aria-labelledby="analysisTitle">
+          <aside class="analysis-pane" id="gameAnalysisPane" aria-labelledby="analysisTitle">
             <div class="pane-heading">
-              <span>LIVE ANALYSIS</span>
-              <h3 id="analysisTitle">카메라가 읽은 표정</h3>
+              <div><span>04 함께 돌아보기</span><h3 id="analysisTitle">카메라가 읽은 표정</h3></div>
+              <button class="mobile-sheet-close" id="analysisSheetClose" type="button" aria-label="감정 분석 닫기">닫기</button>
             </div>
             <p class="analysis-intro">실제 감정을 판단하지 않으며, 얼굴 움직임과 닮은 정도예요.</p>
 
@@ -219,6 +216,15 @@
               <small id="leadingNote">표정을 지으면 결과가 나타나요.</small>
             </div>
           </aside>
+        </div>
+
+        <div class="mobile-panel-actions mobile-panel-actions--game" aria-label="추가 정보 보기">
+          <button class="mobile-panel-action" id="mobileGuideButton" type="button" aria-expanded="false" aria-controls="gameGuidePane">
+            <span>표정 가이드</span><small>눈·코·입</small>
+          </button>
+          <button class="mobile-panel-action" id="mobileAnalysisButton" type="button" aria-expanded="false" aria-controls="gameAnalysisPane">
+            <span>감정 분석</span><small id="mobileAnalysisSummary">분석 준비</small>
+          </button>
         </div>
 
         <div class="journey-controls" aria-label="게임 조작">
@@ -273,10 +279,10 @@
             </div>
           </section>
 
-          <aside class="analysis-pane detect-analysis" aria-labelledby="detectAnalysisTitle">
+          <aside class="analysis-pane detect-analysis" id="detectAnalysisPane" aria-labelledby="detectAnalysisTitle">
             <div class="pane-heading">
-              <span>5 SEC · LIVE ANALYSIS</span>
-              <h3 id="detectAnalysisTitle">읽고 있는 표정</h3>
+              <div><span>5초 동안 관찰하고 돌아보기</span><h3 id="detectAnalysisTitle">읽고 있는 표정</h3></div>
+              <button class="mobile-sheet-close" id="detectAnalysisSheetClose" type="button" aria-label="표정 분석 닫기">닫기</button>
             </div>
             <p class="analysis-intro">실제 감정을 판단하지 않으며, 얼굴 움직임과 닮은 정도예요.</p>
             <div class="analysis-list" id="detectAnalysisList"></div>
@@ -291,6 +297,12 @@
           </aside>
         </div>
 
+        <div class="mobile-panel-actions mobile-panel-actions--detect" aria-label="추가 정보 보기">
+          <button class="mobile-panel-action" id="detectMobileAnalysisButton" type="button" aria-expanded="false" aria-controls="detectAnalysisPane">
+            <span>감정 분석</span><small id="detectMobileAnalysisSummary">분석 준비</small>
+          </button>
+        </div>
+
         <div class="journey-controls journey-controls--detect" aria-label="표정 읽기 조작">
           <button class="utility-action" id="detectPauseButton" type="button" aria-pressed="false">일시정지</button>
           <button class="soft-action hidden" id="detectRetryButton" type="button">5초 다시 읽기</button>
@@ -301,16 +313,20 @@
       </section>
 
       <section class="screen result-screen hidden" id="resultScreen" aria-labelledby="resultTitle">
-        <div class="result-visual" aria-hidden="true">
-          <div class="result-number">10</div>
-          <div class="result-face"><span></span><span></span><i></i></div>
-          <p>모든 얼굴은<br />저마다 다르게 말해요.</p>
-        </div>
+        <figure class="result-visual result-visual--illustrated">
+          <img src="./assets/emotion-faces-workbook.png" alt="기쁨, 편안함, 슬픔, 걱정, 화남을 서로 다르게 표현하는 어린이들" />
+          <figcaption><span>활동을 마치며</span><strong>모든 얼굴은 저마다 다르게 말해요.</strong></figcaption>
+        </figure>
 
         <div class="result-content">
           <p class="section-kicker">열 가지 마음 탐색 완료</p>
           <h2 id="resultTitle">오늘 만난<br /><span>마음의 얼굴</span></h2>
           <p class="result-lead">목표와 다르게 읽힌 표정도 틀린 것이 아니에요. 실제 마음을 판단하는 검사가 아니며, 얼굴에는 여러 감정의 움직임이 함께 나타날 수 있어요.</p>
+
+          <div class="reflection-prompt">
+            <span>감정 다이어리로 이어가기</span>
+            <p>오늘 가장 표현하기 쉬웠던 표정과 어려웠던 표정을 떠올려 보세요. 내 얼굴에서 무엇이 달라졌나요?</p>
+          </div>
 
           <dl class="result-stats">
             <div><dt>표현한 얼굴</dt><dd id="completedCount">10</dd></div>
@@ -330,6 +346,8 @@
         </div>
       </section>
     </main>
+
+    <button class="mobile-sheet-backdrop" id="mobileSheetBackdrop" type="button" aria-label="열린 정보 패널 닫기"></button>
 
     <div class="round-result hidden" id="roundResult" role="dialog" aria-modal="true" aria-labelledby="roundResultTitle" aria-describedby="roundResultDescription">
       <div class="round-result__content">
